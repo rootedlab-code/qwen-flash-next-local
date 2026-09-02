@@ -317,6 +317,29 @@ run [`mtp/sweep-mtp.sh`](mtp/sweep-mtp.sh) before concluding anything from the
 table above; it is built to separate "the draft limit binds" from "the per-step
 cost grows with batch size", which is the question that decides it.
 
+### MTP does not fit at the optimal `--n-cpu-moe`
+
+Raising `--spec-draft-n-max` above 3 kills the server at load time on 8 GB of
+VRAM:
+
+```
+common_speculative_init_result: creating MTP draft context
+ggml_backend_cuda_buffer_type_alloc_buffer: allocating 64.00 MiB on device 0:
+  cudaMalloc failed: out of memory
+failed to allocate buffer for kv cache
+```
+
+The MTP draft context wants its **own** KV cache on the GPU. At `--n-cpu-moe 46`
+the model already sits at 7133 MiB of 8188, and 64 MiB is not there. Testing a
+longer draft limit requires `--n-cpu-moe 47`, which pushes one more layer's
+experts onto the CPU and off the SSD-backed fast path.
+
+That cost belongs in the ledger for this technique, not hidden in a command
+line: on this class of machine, **using MTP means giving up a layer of experts on
+the GPU**. Any comparison must re-measure the plain baseline at the same
+`--n-cpu-moe`, or it attributes to MTP a slowdown that is really the moved
+layer.
+
 ---
 
 ## Honest limits
@@ -379,6 +402,20 @@ cost grows with batch size", which is the question that decides it.
   answer. The three settings that fix it — `--temp 0.3`, DRY, and a reasoning
   budget — are in `scripts/serve.sh` with the measurements behind each in
   [`docs/measurements.md`](docs/measurements.md).
+- **The obvious DRY setting is the wrong one.** `--dry-multiplier 0.8
+  --dry-allowed-length 2` penalizes every repeated 3-token sequence. A
+  step-by-step explanation *has* to repeat: the array, the table, the running
+  values. Over 4 repetitions per configuration it produced a self-inconsistent
+  answer **2 times out of 4** — numbers silently changing mid-answer — and it
+  had the **highest** repetition rate of the six configurations tested (17.3%),
+  which is the one thing it exists to prevent. `serve.sh` ships `0.4` with
+  `allowed_length 6`: 0/4 inconsistent, 14.1% repetition.
+- **One sample per configuration is noise, and it lies in both directions.** The
+  same sweep at n=1 had cleared the aggressive DRY setting and crowned
+  `temp 0.15` (9% repetition, the lowest). At n=4, `temp 0.15` is the *worst*
+  row in the table: 2/4 inconsistent, 29.4% repetition. `bench-coherence.sh`
+  defaults to 4 repetitions for that reason; treat any single run of it as a
+  hypothesis, not a result.
 - `scripts/coherence.py` and `bench-coherence.sh` score an Italian prompt with
   Italian-aware patterns, because that is what was measured. Port both together
   if you change language.

@@ -30,12 +30,12 @@ command -v python3 >/dev/null || { log_error "python3 not found"; exit 1; }
 
 # name | temp | top_p | top_k | min_p | dry_mult | dry_len
 readonly -a CONFIG=(
-  "current|0.3|0.95|20|0.05|0.8|2"
-  "dry-off|0.3|0.95|20|0.05|0|2"
-  "dry-weak|0.3|0.95|20|0.05|0.4|6"
-  "temp-0.15|0.15|0.95|20|0.05|0.8|2"
-  "top_k-40|0.3|0.95|40|0.05|0.8|2"
-  "temp-0.6|0.6|0.95|20|0.05|0.8|2"
+  "dry-weak|0.3|0.95|20|0.05|0.4|6"      # what serve.sh ships: 0/4 incoherent, 14.1% repetition
+  "dry-aggressive|0.3|0.95|20|0.05|0.8|2" # the obvious setting, and the worst: 2/4, 17.3%
+  "dry-off|0.3|0.95|20|0.05|0|2"          # 0/4, 15.2%
+  "temp-0.15|0.15|0.95|20|0.05|0.8|2"     # 2/4, 29.4% -- looked best at n=1, worst at n=4
+  "top_k-40|0.3|0.95|40|0.05|0.8|2"       # 1/4, 13.1%
+  "temp-0.6|0.6|0.95|20|0.05|0.8|2"       # 2/2 before the run was cut short
 )
 
 mkdir -p "$(dirname -- "$OUT")"

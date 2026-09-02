@@ -50,7 +50,7 @@ exec "$LLAMA_SERVER" \
     --reasoning-budget-message "$THINK_MSG" \
     --no-warmup \
     --temp "$TEMP" --top-p 0.95 --top-k 20 --min-p 0.05 \
-    --dry-multiplier 0.8 --dry-base 1.75 --dry-allowed-length 2 --dry-penalty-last-n 4096 \
+    --dry-multiplier 0.4 --dry-base 1.75 --dry-allowed-length 6 --dry-penalty-last-n 4096 \
     --repeat-penalty 1.05 --repeat-last-n 512 \
     --host 127.0.0.1 --port "$PORT" \
     --jinja \
