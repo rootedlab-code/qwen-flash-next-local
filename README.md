@@ -344,6 +344,26 @@ layer.
 
 ## Honest limits
 
+**The quality findings are confounded with the checkpoint.**
+
+Everything here was measured on a **third-party abliterated build**. That is
+fine for throughput — tokens per second, cache hit rate, expert I/O and the
+filesystem effect do not care which weights are in the file — but it is *not*
+fine for the coherence sections.
+
+The runaway reasoning, the empty answers, and the DRY tuning are attributed
+above to low-bit quantization. Abliteration is independently known to produce
+the same failure modes, and **no non-abliterated control was ever run**: the
+IQ2_XXS and the IQ4_XS measured here are both abliterated builds of the same
+checkpoint, so the two causes cannot be separated from this data.
+
+Read the sampling conclusions as *"this is what this build needed"*, not as
+*"this is what IQ4_XS needs"*. `scripts/bench-coherence.sh` is the way to check:
+run it against a standard IQ4_XS and compare the incoherence rates. If they
+match, quantization is the cause; if the standard build is clean, the tuning
+here is compensating for abliteration and a different checkpoint needs different
+numbers.
+
 **What was not demonstrated.**
 
 - **MTP output diverges from plain output at temperature 0, and it should not.**
