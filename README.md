@@ -81,6 +81,16 @@ told it to do that. The access patterns are simply different enough — a table
 touched 8 rows at a time versus experts touched by the megabyte — that plain LRU
 gets it right.
 
+One qualification, because the logs are more honest than the intent. In the
+grafted-model runs the override was passed twice (see the trap below) and
+llama.cpp kept only the second one, so those runs had **no explicit PLE pin** —
+and they were no slower than the run that did (8.91 against 8.86 t/s). The
+inference is that on this build `--n-cpu-moe` already keeps the table off the
+GPU, and the explicit override is belt-and-braces rather than the load-bearing
+flag. It is kept because it states the intent, it does not cost anything, and
+nothing guarantees the implicit behaviour stays that way. What is *not* in doubt
+is the mechanism: 28.8 GB is not resident, and the model runs in 30 GiB of RAM.
+
 ### 2. `--load-mode mmap` is mandatory, and llama.cpp will tell you otherwise
 
 When llama.cpp sees `-ot ...=CPU` it prints:
@@ -345,6 +355,12 @@ cost grows with batch size", which is the question that decides it.
 
 - **`mincore` residency was sampled, not tracked over time.** The 0%/72% split
   is a snapshot in steady state.
+
+- **The PLE override was not isolated as a variable.** No run deliberately
+  compared "with the pin" against "without it"; the comparison above is a
+  by-product of the duplicate-flag bug, across two model files. Treat "the
+  override is what keeps the PLE off the GPU" as intent, not as a measured
+  claim.
 
 - **The `-md` sidecar path does not work** on PR #27836 as it stands — the
   loader marks trunk tensors as required even for a head-only file. The analysis
