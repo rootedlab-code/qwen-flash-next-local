@@ -193,7 +193,7 @@ weights on an unencrypted filesystem.
 You need llama.cpp built with CUDA, and — only for the MTP part — PR #27836.
 
 ```bash
-git clone <this repo> && cd flasq
+git clone <this repo> && cd qwen-flash-next-local
 cp env.example .env && $EDITOR .env        # LLAMA_CPP_DIR, MODEL_DIR
 
 sudo cp sysctl/95-large-model.conf /etc/sysctl.d/ && sudo sysctl --system
@@ -416,8 +416,9 @@ sysctl/                the reclaim tuning
 ## Credits
 
 The MTP support this builds on is llama.cpp PR #27836; the "extra shard at the
-end" graft strategy follows an approach published by another contributor in that
-discussion. The model is Qwen3.8-Flash-Next; the quantization used here is a
+end" graft strategy follows the approach published by dzannotti in that
+discussion, which is what made grafting the head possible without rewriting the
+whole 97 GB model. The model is Qwen3.8-Flash-Next; the quantization used here is a
 third-party abliterated IQ4_XS build. None of those are redistributed here —
 this repository contains only configuration, tooling and measurements.
 
