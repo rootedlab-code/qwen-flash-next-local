@@ -1,0 +1,12 @@
+```python
+# lru_cache.py - a thread-safe LRU cache with per-entry TTL expiry.
+import threading
+import time
+from collections import OrderedDict
+from typing import Any, Hashable, Optional
+
+
+class LRUCache:
+    """Least-recently-used cache with a maximum size and optional TTL in seconds."""
+
+    def __init__(self, max_size: int = 128, ttl: Optional[float] = None) -> None:
