@@ -291,14 +291,30 @@ GGUFs, no model required, in about a second.
 
 ### The result: 96.1% acceptance, and slower
 
-| | plain | MTP, `n_max 3` |
-|---|---|---|
-| code prompt | **8.91 t/s** | 6.99 t/s — 222/231 drafts accepted (**96.1%**), mean accepted length 3.88 of 4 |
-| prose prompt | **9.53 t/s** | 5.70 t/s — 175/369 accepted (**47.4%**), mean length 2.42 |
+Code prompt, `--n-cpu-moe 47` except where noted:
 
-96.1% is at the top of what the upstream PR reports, and a mean accepted length
-of 3.88 out of a maximum of 4 says the head is *saturating* the draft limit, not
-brushing against it. The head is working. It is still a 22% slowdown.
+| `n_max` | t/s | acceptance | mean accepted length |
+|---|---|---|---|
+| off | **8.54** | — | — |
+| 1 | 4.44 | 98.0% | 1.98 of 2 |
+| 2 | 3.90 | 94.7% | 2.89 of 3 |
+| 3 | 4.23 | 96.1% | 3.88 of 4 |
+| 6 | 6.59 | 87.5% | 6.23 of 7 |
+| 10 | 5.00 | 66.7% | 7.67 of 11 |
+
+Prose is worse throughout: acceptance falls from 73.8% at `n_max 1` to 15.5% at
+`n_max 10`, and throughput with it.
+
+Two things to read here, and one not to. The head **can** draft long — mean
+accepted length climbs to 7.67 — so the draft limit was never the binding
+constraint; the earlier reading of "3.88 of 4, therefore saturating" was wrong.
+And acceptance *rate* falls as the draft grows, which a single point at `n_max
+3` could not have shown. What you should **not** read is an optimum: the t/s
+column carries +/-25% run-to-run noise (see *Honest limits*), so the ordering
+between 1, 2 and 3 is not resolvable. Only the gap to the 8.54 baseline is.
+
+96.1% is at the top of what the upstream PR reports. The head is working. It is
+still a slowdown at every draft length tested.
 
 **Why, structurally:** verifying k+1 tokens in one batch is not free on this
 machine. Each token routes to its own set of experts, so a batch of k+1 tokens
@@ -366,32 +382,55 @@ numbers.
 
 **What was not demonstrated.**
 
-- **MTP output diverges from plain output at temperature 0, and it should not.**
-  Greedy speculative decoding is supposed to be lossless: the target model
-  verifies every drafted token, so the accepted sequence should be identical to
-  what plain decoding would have produced. It is not. Same prompt, `temperature:
-  0`, `seed: 42`:
+- **MTP output diverges from plain output at temperature 0 — but only once the
+  verification batch exceeds two tokens.** Greedy speculative decoding is
+  supposed to be lossless: the target verifies every drafted token, so the
+  accepted sequence should equal what plain decoding would have produced. Same
+  prompt, `temperature: 0`, `seed: 42`, `--n-cpu-moe 47`:
 
-  | run | code sha256 | prose sha256 |
-  |---|---|---|
-  | original trunk | `9689cdb784ec1244` | `7a7d0fcc65dc6045` |
-  | grafted, MTP off | `9689cdb784ec1244` | `7a7d0fcc65dc6045` |
-  | grafted, MTP `n_max 3` | `606ada9e5d04a35d` | `ed52448d4c5e4f8f` |
-  | grafted, MTP `n_max 2` | `16e0bbb94ed294bb` | `82ebff60489609e9` |
+  | run | code sha256 | prose sha256 | |
+  |---|---|---|---|
+  | plain (MTP off) | `9689cdb784ec1244` | `9abdd02a4d009403` | reference |
+  | MTP `n_max 1` | `9689cdb784ec1244` | `9abdd02a4d009403` | **identical** |
+  | MTP `n_max 2` | `16e0bbb94ed294bb` | `82ebff60489609e9` | diverges |
+  | MTP `n_max 3` | `606ada9e5d04a35d` | `68ff25cf8c516a36` | diverges |
 
-  The graft itself is clean — MTP off reproduces the original byte for byte. But
-  the MTP runs differ, and differ again between `n_max 3` and `n_max 2`. The
-  divergence is **deterministic and reproducible**: the `n_max 3` hashes are
-  identical across two different storage devices and two separate server runs.
+  The graft is clean: MTP off reproduces the plain model byte for byte, and so
+  does `n_max 1`. Divergence starts at `n_max 2`, and is **deterministic** — the
+  `n_max 3` hashes reproduce across two storage devices and three separate
+  server runs.
 
-  The compatible explanation is numerical: verifying k+1 tokens in a batch is a
-  different order of floating-point reductions than decoding them one at a time,
-  and a near-tie in expert routing or in the final logits resolves the other way.
-  **That is an explanation, not a proof.** Proving it needs a logit-level
-  comparison of the two paths on the diverging token, which was not done. Until
-  someone does that, "MTP is lossless here" is unverified, and a real bug in the
-  verification path is not excluded. Hashes and full outputs are in
-  [`results/`](results/) so the claim can be checked rather than believed.
+  Two experiments narrow the cause, and both point away from the obvious answer:
+
+  1. **Prefill batch shape does not do it.** `--ubatch-size` 128, 256 and 512 on
+     the trunk with no MTP at all produce **byte-identical** output on both
+     prompts. A 4x change in reduction shape over a whole prompt moves nothing,
+     so this model is not sitting on a knife edge of floating-point near-ties.
+  2. **Rejections do not do it.** `n_max 1` on the prose prompt accepted 127 of
+     172 drafts — **45 rejections**, each one restoring the Gated DeltaNet
+     recurrent state — and still matched the reference exactly. Whatever breaks
+     the correspondence, it is not the checkpoint/restore path.
+
+  What is left: prefill up to 512 is exact, decode with a batch of 2 is exact,
+  decode with a batch of 3 or more always diverges. That pattern is a step, not
+  a gradient, and floating-point noise does not usually produce steps. It looks
+  **systematic in the multi-token verification path**, which is a far more
+  actionable report upstream than "the logits are nearly tied". It is still not
+  proof: that needs a logit-level comparison at the first diverging token, which
+  was not done. Hashes and full outputs are in [`results/`](results/).
+
+- **The throughput numbers in the `n_max` sweep have a +/-25% run-to-run
+  variance, and the sweep cannot resolve an optimum.** The three `--ubatch-size`
+  runs above emit *identical output* and still measure 8.35, 6.33 and 8.01 t/s.
+  No thermal throttling (45.9 C, `performance` governor). The cause is in the
+  harness: `measure-mtp.sh` warms up with **32 tokens**, nowhere near enough to
+  populate the expert cache for a 300-token generation, so each run inherits
+  whatever the previous configuration left resident. Any conclusion here at
+  finer than ~25% granularity — including "the `n_max` optimum is interior" —
+  is not supported by this data. What survives the noise is the gap itself:
+  every MTP configuration lands between 4.2 and 6.6 t/s against a plain
+  baseline of 8.5, which is far outside the variance. Fix the warmup before
+  reusing these scripts for fine comparisons.
 
 - **The `dm-crypt` double-caching hypothesis** is inferred from traffic
   counters, not measured at the device-mapper level.
