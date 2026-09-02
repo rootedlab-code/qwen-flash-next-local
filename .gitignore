@@ -1,0 +1,25 @@
+# Local machine configuration: paths, ports, tuned overrides.
+.env
+
+# Scratch space produced by the scripts.
+work/
+
+# Model weights and anything derived from them. None of this belongs in git:
+# the smallest file here is 2.7 GB.
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+mtp-head/
+
+# Server logs. They record absolute paths, hostnames and, for anything that
+# talks to a model hub, signed CDN URLs. Curated excerpts live in results/.
+*.log
+work/log/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
