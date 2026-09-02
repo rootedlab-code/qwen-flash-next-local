@@ -305,6 +305,29 @@ Code prompt, `--n-cpu-moe 47` except where noted:
 Prose is worse throughout: acceptance falls from 73.8% at `n_max 1` to 15.5% at
 `n_max 10`, and throughput with it.
 
+**DRY costs another 27% on top, and the benchmarks above never saw it.** Every
+number in that table was produced at `temperature 0` with no penalty samplers,
+because that is what a lossless-verification test requires. Real serving does
+not look like that: the sampling settings that fix the coherence problem are on.
+Same server instance, same prompt, only the request parameters changed:
+
+| request | t/s | draft acceptance |
+|---|---|---|
+| `temp 0.3` + DRY 0.4/6 (what `serve.sh` ships) | 4.77 | 67.5% |
+| `temp 0.3`, DRY off | 6.54 | 78.3% |
+| `temperature 0` | 6.15 | 81.6% |
+
+DRY does not merely cost time, it lowers **acceptance**: 67.5% against 78.3%.
+That is the mechanism — the penalty reshapes the target's distribution after
+the draft was written against the unpenalized one, so more drafted tokens get
+rejected, and every rejected token was still paid for in expert reads. The two
+features you want in production, coherent sampling and speculative decoding,
+work against each other here.
+
+Measure your own numbers with penalties **on** if you intend to serve with them.
+A speculative-decoding benchmark run at `temperature 0` describes a regime real
+usage never enters.
+
 Two things to read here, and one not to. The head **can** draft long — mean
 accepted length climbs to 7.67 — so the draft limit was never the binding
 constraint; the earlier reading of "3.88 of 4, therefore saturating" was wrong.
