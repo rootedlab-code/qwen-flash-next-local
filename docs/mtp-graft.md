@@ -1,7 +1,7 @@
 # Grafting the MTP head onto a quantized qwen4exp GGUF
 
 How the multi-token-prediction (MTP) draft head of Qwen3.8-Flash-Next was taken
-out of a 180 GB Hugging Face checkpoint and added to an already-quantized,
+out of a 360 GB Hugging Face checkpoint and added to an already-quantized,
 already-split IQ4_XS GGUF, **without re-quantizing and without copying 97 GB**.
 
 Everything here was run end to end. The commands assume `LLAMA_CPP_DIR` points at
@@ -37,7 +37,7 @@ want to roll back without rebuilding.
 
 `mtp/extract-mtp-head.py`. The head is 36 tensors scattered across 31 of the
 checkpoint's 131 safetensors shards. Downloading those 31 shards whole would be
-~40 GB; downloading the checkpoint would be 180 GB. The script instead reads
+~40 GB; downloading the checkpoint would be 360 GB. The script instead reads
 each shard's **safetensors header** (an 8-byte little-endian length followed by a
 JSON blob with every tensor's `data_offsets`), computes absolute byte offsets,
 merges tensors that happen to be adjacent into one request, and issues a single

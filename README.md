@@ -254,9 +254,9 @@ If you only want to run the model, you need the 97 GB and nothing else.
 Qwen3.8-Flash-Next ships a multi-token-prediction head: a small extra block
 trained to guess the next few tokens, so the big model can verify k+1 tokens in
 one batch instead of decoding them one at a time. The checkpoint that has it is
-the 180 GB safetensors repository, not the GGUF.
+the 360 GB safetensors repository, not the GGUF.
 
-### Getting the head without downloading 180 GB
+### Getting the head without downloading 360 GB
 
 [`mtp/extract-mtp-head.py`](mtp/extract-mtp-head.py) downloads **7.24 GiB**.
 
@@ -457,7 +457,7 @@ scripts/
   coherence.py         the metric behind it
   gguf-header.py       print a GGUF's tensor table without loading the model
 mtp/
-  extract-mtp-head.py  fetch 36 tensors out of a 180 GB checkpoint over HTTP Range
+  extract-mtp-head.py  fetch 36 tensors out of a 360 GB checkpoint over HTTP Range
   graft-mtp-head.py    add the head to a split GGUF as one extra shard
   test_graft_mtp_head.py   end-to-end test on synthetic GGUFs, no model needed
   measure-mtp.sh       one greedy configuration, two prompts, hashes and draft stats
